@@ -1,82 +1,66 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const { MongoClient } = require('mongodb');
-
-const app = express();
-const port = 8574;
-
 let books = [];
 let currentAvailableId = 1;
 
-const mongoUrl = 'mongodb://mongo:27017'; // Use the service name 'mongo' from docker-compose
-const dbName = 'booksDB'; 
+const validGenres = ["SCI_FI", "NOVEL", "HISTORY", "MANGA", "ROMANCE", "PROFESSIONAL"];
 
-async function connectToMongo() {
-    try {
-        const client = new MongoClient(mongoUrl);
-        await client.connect();
-        console.log('Connected to MongoDB');
-        const db = client.db(dbName);
-        booksCollection = db.collection('books'); // Reference to the 'books' collection
-    } catch (error) {
-        console.error('Failed to connect to MongoDB:', error);
-        process.exit(1);
-    }
-}
+// Helper function to check if a genre is valid
+const isValidGenre = (genre) => validGenres.includes(genre);
 
-// Middleware to parse JSON and urlencoded data
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Set up a simple route
-app.get('/books/health', (req, res) => {
-    res.status(200).send('OK');
-});
-
-app.post('/book', (req, res) => {
+// Create a new book
+const createBook = (req, res) => {
     const { title, author, year, price, genres } = req.body;
+
     const existingBook = books.find(book => book.title.toLowerCase() === title.toLowerCase());
     if (existingBook) {
         return res.status(409).json({
             errorMessage: `Error: Book with the title [${title}] already exists in the system`
         });
     }
-    // Check if the year is within the accepted range
+
     if (year < 1940 || year > 2100) {
         return res.status(409).json({
-            errorMessage: `Error: Can't create new Book that its year [${year}] is not in the accepted range [1940 -> 2100]`
+            errorMessage: `Error: Invalid year [${year}], should be between 1940 and 2100`
         });
     }
 
-    // Check if the price is positive
     if (price < 0) {
         return res.status(409).json({
-            errorMessage: `Error: Can't create new Book with negative price`
+            errorMessage: `Error: Price cannot be negative`
         });
     }
 
     const newBook = {
-        id: currentAvailableId, // Assigning the next available ID
+        id: currentAvailableId++,
         title,
         author,
         year,
         price,
         genres
     };
-    currentAvailableId++;
 
-    // Add the new book to the books array
     books.push(newBook);
-
-    // Respond with the newly assigned book number
     res.status(200).json({ result: newBook.id });
+};
 
-});
+// Get a single book by ID
+const getBook = (req, res) => {
+    const { id } = req.query;
+    const book = books.find(book => book.id === parseInt(id));
 
-app.get('/books/total', (req, res) => {
+    if (!book) {
+        return res.status(404).json({
+            result: null,
+            errorMessage: `Error: no such Book with id ${id}`
+        });
+    }
+
+    res.status(200).json({ result: book });
+};
+
+// Get total number of books with filters
+const getBooksTotal = (req, res) => {
     const { author, 'price-bigger-than': priceBiggerThan, 'price-less-than': priceLessThan, 'year-bigger-than': yearBiggerThan, 'year-less-than': yearLessThan, genres } = req.query;
 
-    const validGenres = ["SCI_FI", "NOVEL", "HISTORY", "MANGA", "ROMANCE", "PROFESSIONAL"];
     let filteredBooks = books;
 
     if (author) {
@@ -111,26 +95,24 @@ app.get('/books/total', (req, res) => {
     }
 
     res.status(200).json({ result: filteredBooks.length, errorMessage: null });
-});
+};
 
-app.get('/books', (req, res) => {
+// Get books with filters
+const getBooks = (req, res) => {
     let { author, 'price-bigger-than': priceBiggerThan, 'price-less-than': priceLessThan, 'year-bigger-than': yearBiggerThan, 'year-less-than': yearLessThan, genres } = req.query;
 
-    // Convert query parameters to appropriate types
     priceBiggerThan = priceBiggerThan ? parseFloat(priceBiggerThan) : undefined;
     priceLessThan = priceLessThan ? parseFloat(priceLessThan) : undefined;
     yearBiggerThan = yearBiggerThan ? parseInt(yearBiggerThan, 10) : undefined;
     yearLessThan = yearLessThan ? parseInt(yearLessThan, 10) : undefined;
     genres = genres ? genres.split(',') : undefined;
 
-    // Validate genres if provided
-    const validGenres = ['ROMANCE', 'PROFESSIONAL','SCI_FI', 'NOVEL', 'HISTORY', 'MANGA'];
     if (genres && !genres.every(genre => validGenres.includes(genre))) {
         return res.status(400).json({
             errorMessage: 'Invalid genres provided. Valid options are: ROMANCE, PROFESSIONAL'
         });
     }
-// Filter books based on query parameters
+
     let filteredBooks = books.filter(book => {
         let matches = true;
 
@@ -156,31 +138,12 @@ app.get('/books', (req, res) => {
         return matches;
     });
 
-    // Sort the filtered books by title, case insensitive
     filteredBooks.sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()));
+    res.status(200).json({ result: filteredBooks });
+};
 
-    // Respond with the filtered and sorted list of books
-    res.status(200).json({result: filteredBooks});
-});
-
-app.get('/book', (req, res) => {
-    const { id } = req.query;
-    const book = books.find(book => book.id === parseInt(id));
-
-    if (!book) {
-        return res.status(404).json({
-            result: null,
-            errorMessage: `Error: no such Book with id ${id}`
-        });
-    }
-
-    res.status(200).json({
-        result: book,
-        errorMessage: null
-    });
-});
-
-app.put('/book', (req, res) => {
+// Update a book's price
+const updateBook = (req, res) => {
     const { id, price } = req.query;
     const bookIndex = books.findIndex(book => book.id === parseInt(id));
 
@@ -200,16 +163,15 @@ app.put('/book', (req, res) => {
         });
     }
 
-    // Update the book's price
     books[bookIndex].price = parseFloat(price);
-
     res.status(200).json({
         result: currentPrice,
         errorMessage: null
     });
-});
+};
 
-app.delete('/book', (req, res) => {
+// Delete a book by ID
+const deleteBook = (req, res) => {
     const { id } = req.query;
     const bookIndex = books.findIndex(book => book.id === parseInt(id));
 
@@ -220,24 +182,18 @@ app.delete('/book', (req, res) => {
         });
     }
 
-    // Remove the book from the array
     books.splice(bookIndex, 1);
-
     res.status(200).json({
         result: books.length,
         errorMessage: null
     });
-});
+};
 
-
-// Start the server after connecting to MongoDB
-connectToMongo()
-    .then(() => {
-        app.listen(port, () => {
-            console.log(`Server is running on http://localhost:${port}`);
-        });
-    })
-    .catch((error) => {
-        console.error('Failed to start the server due to MongoDB connection error:', error);
-        process.exit(1); // Exit the process with an error code
-    });
+module.exports = {
+    createBook,
+    getBook,
+    updateBook,
+    deleteBook,
+    getBooksTotal,
+    getBooks
+};

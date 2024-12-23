@@ -14,6 +14,10 @@ router.get('/total', getBooksTotal);
 // GET /books - Get books with filters
 router.get('/', getBooks);
 
+router.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
 // // GET /book - Get a single book by ID
 // router.get('/', getBook);
 
@@ -24,3 +28,4 @@ router.get('/', getBooks);
 // router.delete('/', deleteBook);
 
 module.exports = router;
+
