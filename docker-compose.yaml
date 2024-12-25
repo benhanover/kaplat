@@ -2,17 +2,16 @@ version: "3"
 services:
   postgres:
     image: theshultz/kaplat-books-postgres-instance:latest
+#to expose postgres container externally
     ports:
       - "5432:5432"
   mongo:
     image: theshultz/kaplat-books-mongo-instance:latest
+#to expose mongo container externally
     ports:
       - "27017:27017"
-  server:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: myserver:latest # Explicitly tag the server image
+  app:
+    image: benhanover/kaplat_ex5:2.0
     restart: on-failure:2
     ports:
       - "4785:8574"

@@ -55,7 +55,6 @@ const getBooksByQuery = async (query) => {
 
 // Update a book
 const updateBook = async (book) => {
-    console.log('book:', book);
     try {
         // Ensure rawid is treated as an integer
         const rawid = parseInt(book.rawid, 10);
