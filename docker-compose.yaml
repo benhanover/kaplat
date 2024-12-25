@@ -12,6 +12,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: myserver:latest # Explicitly tag the server image
     restart: on-failure:2
     ports:
       - "4785:8574"

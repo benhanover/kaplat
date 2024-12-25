@@ -1,9 +1,9 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const healthRoutes = require('./routes/healthRoutes');
 const bookRoutes = require('./routes/bookRoutes');
 const booksRoutes = require('./routes/booksRoutes');
-const { connectMongoDB } = require('./mongo/mongo');
+const { connectMongoDB } = require('./mongo/mongo'); // MongoDB connection
+const { connectPostgres } = require('./postgres/postgress'); // PostgreSQL connection
 
 const app = express();
 const port = 8574;
@@ -15,21 +15,25 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Use the routes
 app.use('/book', bookRoutes);
 app.use('/books', booksRoutes);
-app.use('/health', healthRoutes);
 
-// Function to start the server after successful MongoDB connection
+// Function to start the server after successful MongoDB and PostgreSQL connections
 const startServer = async () => {
     try {
-        // Attempt to connect to MongoDB using Mongoose
+        // Connect to MongoDB
         await connectMongoDB();
-        
-        // Start the Express server after MongoDB connection is successful
+        console.log('Connected to MongoDB');
+
+        // Connect to PostgreSQL
+        await connectPostgres();
+        console.log('Connected to PostgreSQL');
+
+        // Start the Express server after successful database connections
         app.listen(port, () => {
             console.log(`Server is running on http://localhost:${port}`);
         });
     } catch (error) {
-        console.error('MongoDB connection failed:', error);
-        process.exit(1); // Exit the application if MongoDB connection fails
+        console.error('error starting the server', error);
+        process.exit(1); // Exit the application if any database connection fails
     }
 };
 
